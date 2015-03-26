@@ -1,0 +1,6 @@
+To run this you need to install Praw https://praw.readthedocs.org/en/v2.1.20/pages/getting_started.html
+You can use pip which is probably installed if python is installed by typing the below into a terminal:
+
+pip install praw
+
+Then everything should just work... hopefully
