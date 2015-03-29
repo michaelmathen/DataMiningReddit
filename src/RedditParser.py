@@ -1,6 +1,5 @@
 import praw
 from itertools import count
-import json
 
 USER_STR = 'OSX:Data Mining School Project :v1.0 by /u/haskellmonk'
 comment_map = dict(zip(["body",
@@ -48,23 +47,34 @@ def Parse_Subreddit(name, order=Get_Hot):
             if isinstance(comment_obj, praw.objects.MoreComments):
                 #I am just ignoring these
                 continue
-            try:
-                comment_data = (comment_obj.body, 
-                                comment_obj.gilded,
-                                comment_obj.score,
-                                comment_obj.created_utc,
-                                comment_obj.subreddit.display_name,
-                                comment_obj.author.name,
-                                submission.title,
-                                submission.author.name,
-                                submission.score,
-                                submission.created_utc)
-                yield comment_data
-            except KeyboardInterrupt:
-                raise
-            except:
-                print "Bad comment. I am not sure why this happens?"
+            if comment_obj.author is None:
                 continue
+            comment_data = (comment_obj.body, 
+                            comment_obj.gilded,
+                            comment_obj.score,
+                            comment_obj.created_utc,
+                            comment_obj.subreddit.display_name,
+                            comment_obj.author.name,
+                            submission.title,
+                            submission.author.name,
+                            submission.score,
+                            submission.created_utc)
+            yield comment_data
+
+
+def All_Users(subreddit, max_user_number=100):
+    """
+    Get all the usernames in a subreddit as a stream.
+    """
+    users = {}
+    for elem in Parse_Subreddit(subreddit, order=Get_Top):
+        if elem[comment_map["author"]] in users:
+            users[elem[comment_map["author"]]] += 1
+        else:
+            users[elem[comment_map["author"]]] = 1
+        if len(users) >= max_user_number:
+            break
+    return users
 
 
 def Stream_To_File(stream, fname, k=10000):
@@ -94,23 +104,19 @@ def All_User_Comments(user_name, sort='new'):
     """
     r = praw.Reddit(USER_STR)
     for comment_obj in r.get_redditor(user_name).get_comments(sort=sort,limit=None):
-        try:
-            if isinstance(comment_obj, praw.objects.MoreComments):
-                continue
-            submission= r.get_submission(submission_id=comment_obj.link_id[3:])
-            comment_data = (comment_obj.body, 
-                            comment_obj.gilded,
-                            comment_obj.score,
-                            comment_obj.created_utc,
-                            comment_obj.subreddit.display_name,
-                            comment_obj.author.name,
-                            comment_obj.link_title,
-                            comment_obj.link_author,
-                            submission.score,
-                            submission.created_utc)
-            yield comment_data
-        except KeyboardInterrupt:
-            raise
-        except:
-            print "Bad comment."
+        if isinstance(comment_obj, praw.objects.MoreComments):
             continue
+        if comment_obj.author is None:
+            continue
+        submission= r.get_submission(submission_id=comment_obj.link_id[3:])
+        comment_data = (comment_obj.body, 
+                        comment_obj.gilded,
+                        comment_obj.score,
+                        comment_obj.created_utc,
+                        comment_obj.subreddit.display_name,
+                        comment_obj.author.name,
+                        comment_obj.link_title,
+                        comment_obj.link_author,
+                        submission.score,
+                        submission.created_utc)
+        yield comment_data
