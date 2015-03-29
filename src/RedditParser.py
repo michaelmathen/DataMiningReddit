@@ -35,7 +35,7 @@ def Get_Controversial(subreddit_handle):
     return subreddit_handle.get_controversial(limit=None)
 
 
-def Parse_Subreddit(name, order=Get_Hot):
+def Parse_Subreddit(name, order=Get_Top):
     """
     Given the name of a subreddit get all comments ever posted in that subreddit.
     The optional order determines the order in which they are returned.
@@ -48,6 +48,8 @@ def Parse_Subreddit(name, order=Get_Hot):
                 #I am just ignoring these
                 continue
             if comment_obj.author is None:
+                continue
+            if submission.author is None:
                 continue
             comment_data = (comment_obj.body, 
                             comment_obj.gilded,
@@ -67,13 +69,18 @@ def All_Users(subreddit, max_user_number=100):
     Get all the usernames in a subreddit as a stream.
     """
     users = {}
-    for elem in Parse_Subreddit(subreddit, order=Get_Top):
-        if elem[comment_map["author"]] in users:
-            users[elem[comment_map["author"]]] += 1
-        else:
-            users[elem[comment_map["author"]]] = 1
-        if len(users) >= max_user_number:
-            break
+    try:
+        for elem in Parse_Subreddit(subreddit, order=Get_Top):
+            if elem[comment_map["author"]] in users:
+                users[elem[comment_map["author"]]] += 1
+            else:
+                users[elem[comment_map["author"]]] = 1
+            if len(users) >= max_user_number:
+                break
+            if len(users) % 100 == 0:
+                print len(users)
+    except Exception:
+        return users
     return users
 
 
