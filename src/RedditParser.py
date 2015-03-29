@@ -1,7 +1,8 @@
 import praw
 from itertools import count
+import json
 
-USER_STR = 'OSX:Data Mining School Project Bot:v1.0 by /u/haskellmonk'
+USER_STR = 'OSX:Data Mining School Project :v1.0 by /u/haskellmonk'
 comment_map = dict(zip(["body",
                         "gilded",
                         "score",
@@ -35,8 +36,6 @@ def Get_Controversial(subreddit_handle):
     return subreddit_handle.get_controversial(limit=None)
 
 
-
-
 def Parse_Subreddit(name, order=Get_Hot):
     """
     Given the name of a subreddit get all comments ever posted in that subreddit.
@@ -61,9 +60,29 @@ def Parse_Subreddit(name, order=Get_Hot):
                                 submission.score,
                                 submission.created_utc)
                 yield comment_data
+            except KeyboardInterrupt:
+                raise
             except:
                 print "Bad comment. I am not sure why this happens?"
                 continue
+
+
+def Stream_To_File(stream, fname, k=10000):
+    """
+    Keep streaming data to a file from reddit until k is reached or until
+    the stream is exhausted.
+    """
+    with open(fname, "w+") as f:
+        f.write("DataStream = [")
+        while True:
+            try:
+                element = stream.next()
+                f.write(repr(element))
+                f.write(",\n")
+            except:
+                f.write("]\n")
+                break
+
 
 
 def All_User_Comments(user_name, sort='new'):
@@ -90,7 +109,8 @@ def All_User_Comments(user_name, sort='new'):
                             submission.score,
                             submission.created_utc)
             yield comment_data
+        except KeyboardInterrupt:
+            raise
         except:
             print "Bad comment."
             continue
-        
