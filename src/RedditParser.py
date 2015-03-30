@@ -1,5 +1,6 @@
 import praw
 from itertools import count
+from collections import deque
 
 USER_STR = 'OSX:Data Mining School Project :v1.0 by /u/haskellmonk'
 comment_map = dict(zip(["body",
@@ -27,6 +28,10 @@ def Get_Top(subreddit_handle):
     return subreddit_handle.get_top(limit=None)
 
 
+def Get_Top_All(subreddit_handle):
+    return subreddit_handle.get_top_from_all(limit=None)
+
+
 def Get_Rising(subreddit_handle):
     return subreddit_handle.get_rising(limit=None)
 
@@ -45,7 +50,6 @@ def Parse_Subreddit(name, order=Get_Top):
     for submission in order(r.get_subreddit(name)):
         for comment_obj in praw.helpers.flatten_tree(submission.comments):
             if isinstance(comment_obj, praw.objects.MoreComments):
-                #I am just ignoring these
                 continue
             if comment_obj.author is None:
                 continue
@@ -64,24 +68,16 @@ def Parse_Subreddit(name, order=Get_Top):
             yield comment_data
 
 
-def All_Users(subreddit, max_user_number=100):
+def All_Users(subreddit, max_user_number=100, users=set()):
     """
     Get all the usernames in a subreddit as a stream.
     """
-    users = {}
-    try:
-        for elem in Parse_Subreddit(subreddit, order=Get_Top):
-            if elem[comment_map["author"]] in users:
-                users[elem[comment_map["author"]]] += 1
-            else:
-                users[elem[comment_map["author"]]] = 1
-            if len(users) >= max_user_number:
-                break
-            if len(users) % 100 == 0:
-                print len(users)
-    except Exception:
-        return users
-    return users
+    for elem in Parse_Subreddit(subreddit, order=Get_Top_All):
+        if elem[comment_map["author"]] not in users:
+            users.add(elem[comment_map["author"]])
+            yield elem[comment_map["author"]]
+        if len(users) >= max_user_number:
+            break
 
 
 def Stream_To_File(stream, fname, k=10000):

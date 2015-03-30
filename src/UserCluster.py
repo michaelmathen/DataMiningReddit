@@ -1,21 +1,26 @@
-import csv
 import RedditParser
 
 
-def Save_Reddit_User_Names(subreddit, number):
-    user_counts = RedditParser.All_Users(subreddit, max_user_number=number)
-    with open("user_names_%s_%d.csv" % (subreddit, len(user_counts)), "w+") as f:
-        print "Finished getting user counts"
-        writer = csv.writer(f, delimiter=',', quotechar='\'', quoting=csv.QUOTE_ALL)
-        for user in user_counts:
-            writer.writerow([user, user_counts[user]])
-    print "Finished writing names"
+def Save_Reddit_User_Names(file_name, subreddit, number):
+    name_set = set()
+    try:
+        with open(file_name, "r") as f:
+            for line in f:
+                name_set.add(line.rstrip())
+    except:
+        pass
+    with open(file_name, "a+") as f:
+        k = len(name_set)
+        for user in RedditParser.All_Users(subreddit, max_user_number=number,
+                                           users=name_set):
+            f.write(user + "\n")
+            k += 1
+            if k % 100 == 0:
+                print k
+            if k == number:
+                break    
 
 
 
 if __name__ == "__main__":
-    Save_Reddit_User_Names("all", 50000)
-    
-
-
-
+    Save_Reddit_User_Names("user_names.txt", "fffffffuuuuuuuuuuuu", 400000)
