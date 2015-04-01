@@ -41,7 +41,7 @@
 	
 	"If only he had another one"
 	
-	The first is fairly long , and the second is only a few words.  This in and of itself ensures low similarity just based on size.  Not to mention, that they both don't share a single word.  As it stands now we can say that the words alone do not make good predictors or reddit likeability.  However there was a lot of variance in the rankings of these 1000 posts.  What happens if we restrict the posts to a range and refine our question say, "How similar are high ranking posts where the rankings differ by no more than 100 votes?"  Here we examine what happens when we take reddit posts that received between 100 and 200 up-votes.  We find that the similarities are:\newline
+	The first is fairly long , and the second is only a few words.  This in and of itself ensures low similarity just based on size.  Not to mention, that they both don't share a single word.  As it stands now we can say that the words alone do not make good predictors of reddit likeability.  However there was a lot of variance in the rankings of these 1000 posts.  What happens if we restrict the posts to a range and refine our question say, "How similar are high ranking posts where the rankings differ by no more than 100 votes?"  Here we examine what happens when we take reddit posts that received between 100 and 200 up-votes.  We find that the similarities are:\newline
 	
 \begin{table}[h!]
 	  \begin{tabular}{c | c c c c}
@@ -50,6 +50,15 @@
 	  Similarity & .023 & $2.21e^{-3}$ & $1.69e^{-3}$ & $1.54e^{-3}$
 	  \end{tabular}
 	\end{table}
-	This was surprising because it was slightly worse than the whole set.  Perhaps in the upper upper echelon of reddit posts there is some similarity.  What about if we only look at posts that received more than 1000 votes?  Is there some similarity here?
+	This was surprising because it was slightly worse than the whole set.  Perhaps in the upper upper echelon of reddit posts there is some similarity.  What about if we only look at posts that received more than 1000 votes?  Is there some similarity here?  We find that there is significantly more similarity in the posts among posts above 1000 up-votes.  These results are:\newline
+	
+	\begin{table}[h!]
+	  \begin{tabular}{c | c c c c}
+	  n-gram & 1 & 2 & 3 & 4\\
+	  \hline
+	  Similarity & .042 & .017 & .017 & .016
+	  \end{tabular}
+	\end{table}
+	
 
 \end{document}
