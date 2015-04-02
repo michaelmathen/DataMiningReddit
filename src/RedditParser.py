@@ -98,7 +98,7 @@ def Stream_To_File(stream, fname, k=10000):
 
 
 
-def All_User_Comments(user_name, sort='new'):
+def All_User_Comments(user_name, sort='new', no_submission=False):
     """
     Give an username this function will return all comments that the user 
     has ever posted formatted in the same way that we use for Parse_Subreddit.
@@ -111,7 +111,6 @@ def All_User_Comments(user_name, sort='new'):
             continue
         if comment_obj.author is None:
             continue
-        submission= r.get_submission(submission_id=comment_obj.link_id[3:])
         comment_data = (comment_obj.body, 
                         comment_obj.gilded,
                         comment_obj.score,
@@ -119,7 +118,8 @@ def All_User_Comments(user_name, sort='new'):
                         comment_obj.subreddit.display_name,
                         comment_obj.author.name,
                         comment_obj.link_title,
-                        comment_obj.link_author,
-                        submission.score,
-                        submission.created_utc)
+                        comment_obj.link_author)
+        if no_submission:
+            submission= r.get_submission(submission_id=comment_obj.link_id[3:])
+            comment_data = comment_data + (submission.score, submission.created_utc)
         yield comment_data
