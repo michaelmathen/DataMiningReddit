@@ -1,7 +1,7 @@
 import numpy as np
 from random import random
 
-def frequent_items_MG(stream, k):
+def MG(stream, k):
     counters = {}
     for item in stream:
         if item in counters:
@@ -15,7 +15,7 @@ def frequent_items_MG(stream, k):
                     counters.pop(key)
     return counters
 
-def exact_fq_items(stream):
+def exact(stream):
     counters = {}
     for item in stream:
         if item in counters:
@@ -41,7 +41,6 @@ def stream_length(stream):
 h = [make_multiplicative_hash(10) for i in xrange(5)]
 
 def Count_Min(stream, t, k):
-
     C = np.zeros((t, k))
     for item in stream:
         for j in xrange(t):

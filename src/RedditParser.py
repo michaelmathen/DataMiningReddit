@@ -1,6 +1,8 @@
 import praw
 from itertools import count
 from collections import deque
+import time
+import requests
 
 USER_STR = 'OSX:Data Mining School Project :v1.0 by /u/haskellmonk'
 comment_map = dict(zip(["body",
@@ -97,7 +99,6 @@ def Stream_To_File(stream, fname, k=10000):
                 break
 
 
-
 def All_User_Comments(user_name, sort='new', no_submission=False):
     """
     Give an username this function will return all comments that the user 
@@ -106,20 +107,42 @@ def All_User_Comments(user_name, sort='new', no_submission=False):
     sort -- The order in which the comments are returned.
     """
     r = praw.Reddit(USER_STR)
-    for comment_obj in r.get_redditor(user_name).get_comments(sort=sort,limit=None):
+    for comment_obj in r.get_redditor(user_name, fetch=False).get_comments(sort=sort,limit=None):
         if isinstance(comment_obj, praw.objects.MoreComments):
             continue
         if comment_obj.author is None:
             continue
-        comment_data = (comment_obj.body, 
-                        comment_obj.gilded,
-                        comment_obj.score,
-                        comment_obj.created_utc,
-                        comment_obj.subreddit.display_name,
-                        comment_obj.author.name,
-                        comment_obj.link_title,
-                        comment_obj.link_author)
+        comment_data = (comment_obj.subreddit_id,)
         if no_submission:
             submission= r.get_submission(submission_id=comment_obj.link_id[3:])
             comment_data = comment_data + (submission.score, submission.created_utc)
         yield comment_data
+
+
+def Fast_User_Comments(user_name, max_pages=None):
+    r = praw.Reddit(USER_STR)
+    headers = {
+        'User-Agent': USER_STR
+    }
+    if max_pages is None:
+        max_pages = -1
+    r = requests.get("http://www.reddit.com/user/" + user_name + ".json", headers=headers)
+    count = 0
+    while True:
+        if r.status_code != 200:
+            break
+        comments = r.json()
+        for children in comments["data"]["children"]:
+            yield children["data"]["subreddit"]
+        count += 25
+        if max_pages == 0:
+            break
+        max_pages -= 1
+        if comments["data"]["after"]:
+            prefix = ".json?count=%d&after=%s" % (count, comments["data"]["after"])
+            time.sleep(2)
+            r = requests.get("http://www.reddit.com/user/" + user_name + prefix,
+                             headers=headers)
+        else:
+            break
+
