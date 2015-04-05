@@ -3,6 +3,7 @@ from itertools import count
 from collections import deque
 import time
 import requests
+import random 
 
 USER_STR = 'OSX:Data Mining School Project :v1.0 by /u/haskellmonk'
 comment_map = dict(zip(["body",
@@ -69,6 +70,44 @@ def Parse_Subreddit(name, order=Get_Top):
                             submission.created_utc)
             yield comment_data
 
+
+def Random_User_Stream(max_user_number=100, max_submissions=25, users=set()):
+    """
+    Grab random subreddit and grab the first 10 users or submissions that we
+    haven't seen before from that subreddit
+    """
+    r = praw.Reddit(USER_STR)
+    while True:
+        try:
+            sub_count = 0
+            if random.random() > .8:
+                flag = True
+            else:
+                flag = False
+            for submission in r.get_random_subreddit(nsfw=flag).get_top_from_all(limit=25):
+                if submission.author is not None:
+                    if submission.author.name not in users:
+                        users.add(submission.author.name)                    
+                        yield submission.author.name
+                user_count = 0
+                for comment_obj in praw.helpers.flatten_tree(submission.comments):
+                    if isinstance(comment_obj, praw.objects.MoreComments):
+                        continue
+                    if comment_obj.author is None:
+                        continue
+                    if comment_obj.author.name not in users:
+                        users.add(comment_obj.author.name)
+                        user_count += 1
+                        yield comment_obj.author.name
+                    if user_count > max_user_number:
+                        break
+                if user_count > max_user_number:
+                    break
+                sub_count += 1
+                if sub_count > max_submissions:
+                    break
+        except:
+            r = praw.Reddit(USER_STR)                
 
 def All_Users(subreddit, max_user_number=100, users=set()):
     """
@@ -145,4 +184,3 @@ def Fast_User_Comments(user_name, max_pages=None):
                              headers=headers)
         else:
             break
-
