@@ -6,9 +6,9 @@ import numpy as np
 import heapq
 
 
-def cluster_directory(directory):
+def matrix_repre(directory):
     """
-    Does a density based cluster on the user data using cosine similiarity.
+    Constructs a matrix corresponding to the subreddits that users have posted to.
     """
     file_names = os.listdir(directory)
     subreddit_map = {}
@@ -31,7 +31,14 @@ def cluster_directory(directory):
                     data.append(counts[subreddit])
                 row_i += 1
     user_count_matrix = csr_matrix((data, (all_rows, all_cols)))
-    row_norms = np.sqrt(user_count_matrix.multiply(user_count_matrix).sum(axis=1))
+    return (user_count_matrix, subreddit_map, reverse_map)
+
+
+def normalize_rows(matrix):
+    """
+    Normalize each row in the matrix so that the are of length 1.
+    """
+    row_norms = np.sqrt(matrix.multiply(matrix).sum(axis=1))
     def dv(x):
         if x == 0:
             return 0
@@ -39,31 +46,42 @@ def cluster_directory(directory):
             return 1.0 / x
     f = np.vectorize(dv)
     row_norms = np.ravel(f(row_norms))
-    print row_norms
     row_norms = diags(row_norms, 0)
-    user_count_matrix = row_norms.dot(user_count_matrix)
-    
-    #user_count_matrix
-    #user_count_matrix = user_count_matrix.log1p()
-    print user_count_matrix.shape
+    matrix = row_norms.dot(matrix)
+    return matrix
+
+
+def cosine_cluster_users_matrix(user_count_matrix, k = 60):
+    """
+    Just clusters the matrix using cosine similiarity.
+    If we normalize the rows of the matrix then 
+    ||a - b||^2 = (a - b)(a - b)^T = ||a||^2 + ||b||^2 - 2a^Tb = 2(1 - a^Tb)
+    = 2(1 - cos(\theta))
+    """
+    user_count_matrix = normalize_rows(user_count_matrix)
     #db = cluster.DBSCAN(min_samples=5, algorithm='brute', metric="cosine")
-    db = cluster.AgglomerativeClustering(n_clusters=30)#, affinity="cosine", linkage="complete")
-    #db = cluster.KMeans(n_clusters=23)
-    labels = db.fit_predict(user_count_matrix.todense())
+    #db = cluster.AgglomerativeClustering(n_clusters=30)#, affinity="cosine", linkage="complete")
+    #db = cluster.MiniBatchKMeans(n_clusters=30, max_iter=1000, batch_size=400)
+    db = cluster.KMeans(n_clusters=k, max_iter=10000)
+    #db = cluster.SpectralClustering(n_clusters=30)
+    #db = cluster.Ward(n_clusters=30)
+    #db = cluster.Birch(n_clusters=30)
+    return db.fit_predict(user_count_matrix)
+
+def cluster_center(matrix, labels, label):
+    cluster_rows = matrix[labels == label, :]
+    return cluster_rows.sum(axis=0) / float(cluster_rows.sum())
+
+def cluster_centers(count_matrix, reverse_map, labels):
+        
     #Now we have to make sense of what each cluster actually is.
     cluster_bags = {}
-    for row in xrange(user_count_matrix.shape[0]):
-        (rows, cols) = user_count_matrix.getrow(row).nonzero()
-        for col in cols:
-            subreddit = reverse_map[col]
-            count = user_count_matrix[row, col]
-            if labels[row] not in cluster_bags:
-                cluster_bags[labels[row]] = {}
-            if subreddit not in cluster_bags[labels[row]]:
-                cluster_bags[labels[row]][subreddit] = count
-            else:
-                cluster_bags[labels[row]][subreddit] += count
-    return (cluster_bags, labels, user_count_matrix)
+    for label in np.unique(labels):
+        center = cluster_center(count_matrix, labels, label)
+        center = np.ravel(center)
+        ixs = np.nonzero(center > 0)[0]
+        cluster_bags[label] = {reverse_map[ix]:center[ix] for ix in ixs}
+    return cluster_bags
 
 def threshold_bag(bag, epsilon):
     total = sum([bag[sub] for sub in bag])
@@ -74,21 +92,36 @@ def threshold_bag(bag, epsilon):
     return thresh_bag
         
 
-def k_representatives(bags, k):
-    representatives = []
-    for bag_key in bags:
-        if bags[bag_key] > k:
-            representatives.append(heapq.nlargest(k, bags[bag_key], key=bags[bag_key].__getitem__))
-        else:
-            representatives.append(bags[bag_key].keys())
-    return representatives
+def k_representatives(bag, k):
+    if bag > k:
+        values = heapq.nlargest(k, bag, key=bag.__getitem__)
+        return [(value, bag[value]) for value in values]
+    else:
+        return bags[bag_key].items()
     
+(matrix, subreddit_map, reverse_map) = matrix_repre("../data/subreddits")
+#matrix = matrix > 0
+arr = np.zeros(len(subreddit_map))
+arr[subreddit_map["programming"]] = 1
+matrix = matrix[matrix.dot(arr) > 0, :]
 
-(bags, labels, matrix) = cluster_directory("../data/subreddits/")
+labels = cosine_cluster_users_matrix(matrix, k=10)
+bags = cluster_centers(matrix, reverse_map, labels)
 
 print (matrix != 0).sum() / float(np.product(matrix.shape))
+print matrix.shape
 
-for repre, bag_key in zip(k_representatives(bags, 5), bags):
-    print str(repre) + " " + str(sum(labels == bag_key))
+key_order = sorted(bags, key=lambda bag_key: sum(labels == bag_key))
+for bag_key in key_order:
+    strs = map(lambda x: str(x[0]) + ": %.3f"%x[1], k_representatives(bags[bag_key], 5))
+    print str(sum(labels == bag_key)) + " " + " ".join(strs)
+"""
+#Just linguists
+labels = cosine_cluster_users_matrix(lingmat, k=3)
+bags = most_important(lingmat, reverse_map, labels)
 
-#data = cluster_directory("../data/subreddits/")[0]
+key_order = sorted(bags, key=lambda bag_key: sum(labels == bag_key))
+for bag_key in key_order:
+    print str(sum(labels == bag_key)) + " " + str(k_representatives(bags[bag_key], 10))
+
+"""

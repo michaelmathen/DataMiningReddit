@@ -10,9 +10,8 @@ def Save_Reddit_User_Names(file_name, subreddit, number):
     except:
         pass
     with open(file_name, "a+") as f:
-        k = len(name_set)
-        for user in RedditParser.All_Users(subreddit, max_user_number=number,
-                                           users=name_set):
+        k = 0
+        for user in RedditParser.All_Users(subreddit, users=name_set):
             f.write(user + "\n")
             k += 1
             if k % 100 == 0:
@@ -38,5 +37,5 @@ def Save_Random_User_Names(file_name):
             
 
 if __name__ == "__main__":
-    Save_Random_User_Names("user_names.txt")
-    #Save_Reddit_User_Names("user_names.txt", "fffffffuuuuuuuuuuuu", 400000)
+    Save_Random_User_Names("user_names_rand.txt")
+    #Save_Reddit_User_Names("user_names_meg.txt", "metal", 200)

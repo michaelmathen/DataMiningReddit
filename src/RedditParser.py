@@ -84,6 +84,7 @@ def Random_User_Stream(max_user_number=100, max_submissions=25, users=set()):
                 flag = True
             else:
                 flag = False
+            flag = False
             for submission in r.get_random_subreddit(nsfw=flag).get_top_from_all(limit=25):
                 if submission.author is not None:
                     if submission.author.name not in users:
@@ -109,7 +110,7 @@ def Random_User_Stream(max_user_number=100, max_submissions=25, users=set()):
         except:
             r = praw.Reddit(USER_STR)                
 
-def All_Users(subreddit, max_user_number=100, users=set()):
+def All_Users(subreddit, users=set()):
     """
     Get all the usernames in a subreddit as a stream.
     """
@@ -117,8 +118,6 @@ def All_Users(subreddit, max_user_number=100, users=set()):
         if elem[comment_map["author"]] not in users:
             users.add(elem[comment_map["author"]])
             yield elem[comment_map["author"]]
-        if len(users) >= max_user_number:
-            break
 
 
 def Stream_To_File(stream, fname, k=10000):
