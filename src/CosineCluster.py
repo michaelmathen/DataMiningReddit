@@ -7,7 +7,9 @@ import numpy as np
 import numpy.linalg as npl
 from numpy.random import normal
 import heapq
+import math
 from random import randint, random
+from scipy.linalg import hadamard
 import cProfile
 
 def matrix_repre(directory):
@@ -38,27 +40,31 @@ def matrix_repre(directory):
     return (user_count_matrix, subreddit_map, reverse_map)
 
 
-def k_means_pp(points, k, initial = None, ):
+def k_means_pp(points, k, initial = None):
     (n, d) = points.shape
-    centers = []
     if initial is None:
+        offset = 0
+        centers = []
         centers.append(points[randint(0, n - 1), :])
     else:
         centers = initial
-        for center in centers:
-            center.shape
-    for i in xrange(1, k):
+        offset = len(initial)
+    for i in xrange(1, k - offset):
         #get distance to each cluster so
         # kxd and d x n = kxn
         # want 1 x n of distance sum to point
         pt_dist = np.ones((n, 1)) * len(centers)
         for center in centers:
+            #center = center.reshape((np.prod(center.shape), 1))
             pt_dist = pt_dist - points.dot(center.transpose())
         probs = 1 / pt_dist.sum() * pt_dist
         cdf = np.ravel(np.cumsum(probs))
         r = random()
         index = np.searchsorted(cdf, r)
         centers.append(points[index - 1, :])
+    for center in centers:
+        print
+        print center.shape
     return vstack(centers, format="csr")
 
 def normalize_rows(matrix):
@@ -94,12 +100,54 @@ def lsh_h(f_n, d):
     mat = normalize_rows(normal(0, 1, (f_n, d)))
     return mat.transpose()
 
+def nextpow2(i):
+    n = 1
+    while n < i:
+        n *= 2
+    return n
+
+
+def approx_bound(eps, n):
+    return 1 / eps ** 2 * math.log(n)
+
+
+def fjlt(n, d, eps, p):
+    k = int(approx_bound(eps, n) + .5)
+    #Build the Hadamard
+    val_len = nextpow2(d)
+    H = (1 / math.sqrt(d)) * hadamard(val_len)[0:d, 0:d]
+
+    #Build the diagonal matrix
+    diag_mat = np.zeros(d)
+    for i in xrange(d):
+        if np.random.random() <= 0.5:
+            diag_mat[i] = 1
+        else:
+            diag_mat[i] = -1
+    D = np.diag(diag_mat, 0)
+    q = min(math.log(n)**p / (d * eps ** (p - 2)), 1.0)
+
+    p_data = []
+    p_rows = []
+    p_cols = []
+    for i in xrange(k):
+        for j in xrange(d):
+            if  q > np.random.random():
+                p_data.append(np.random.normal(0, 1/q))
+                p_rows.append(i)
+                p_cols.append(j)
+    P = sparse.csr_matrix((p_data, (p_rows, p_cols)), shape=(k, d))
+    S = P.dot(H).dot(D)
+    return S
+
 
 def kmeans_cosine(k, sparse_matrix,  max_iters=100):
     sparse_matrix = normalize_rows(sparse_matrix)
-    (n, d) = sparse_matrix.shape
-    centers = k_means_pp(sparse_matrix, k)    
-    #n x k want argmax of rows
+    U, s, V = svds(sparse_matrix, k=25)
+    #theta = fjlt(n, d, .01, 2)
+    sparse_matrix = sparse_matrix.dot(V.transpose())
+    sparse_matrix = csr_matrix(sparse_matrix)
+    centers = k_means_pp(sparse_matrix, k)
     distances = sparse_matrix.dot(centers.transpose())
     labels = argmax(distances)
     
@@ -111,7 +159,7 @@ def kmeans_cosine(k, sparse_matrix,  max_iters=100):
             center = sparse_matrix[labels == label, :].sum(axis=0)
             new_centers.append(center / npl.norm(center))
         new_centers = k_means_pp(sparse_matrix, k, initial=new_centers)
-
+        print new_centers.shape
         distances = sparse_matrix.dot(new_centers.transpose())
         new_labels = argmax(distances)
 
@@ -180,11 +228,11 @@ matrix = matrix[matrix.dot(arr) > 0, :]
 #labels = cosine_cluster_users_matrix(matrix, k=150)
 #(labels, centers) = kmeans_cosine(10, matrix)
 def run():
-    (labels, centers) = kmeans_cosine(10, matrix, max_iters=10)
-cProfile.run("run()")
+    (labels, centers) = kmeans_cosine(10, matrix, max_iters=1)
+#cProfile.run("run()")
 
-(labels, centers) = kmeans_cosine(10, matrix, max_iters=1)
-"""
+(labels, centers) = kmeans_cosine(4, matrix, max_iters=100)
+
 bags = cluster_centers(matrix, reverse_map, labels)
 print (matrix != 0).sum() / float(np.product(matrix.shape))
 
@@ -195,5 +243,3 @@ for bag_key in key_order:
     strs = map(lambda x: str(x[0]) + ": %.3f"%x[1], k_representatives(bags[bag_key], 5))
     print str(sum(labels == bag_key)) + " " + " ".join(strs)
 
-
-"""
