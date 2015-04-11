@@ -1,10 +1,14 @@
 import json
-from scipy.sparse import csr_matrix, diags
+from scipy.sparse import csr_matrix, diags, coo_matrix, vstack
+from scipy.sparse.linalg import svds
 import sklearn.cluster as cluster
 import os
 import numpy as np
+import numpy.linalg as npl
+from numpy.random import normal
 import heapq
-
+from random import randint, random
+import cProfile
 
 def matrix_repre(directory):
     """
@@ -34,6 +38,29 @@ def matrix_repre(directory):
     return (user_count_matrix, subreddit_map, reverse_map)
 
 
+def k_means_pp(points, k, initial = None, ):
+    (n, d) = points.shape
+    centers = []
+    if initial is None:
+        centers.append(points[randint(0, n - 1), :])
+    else:
+        centers = initial
+        for center in centers:
+            center.shape
+    for i in xrange(1, k):
+        #get distance to each cluster so
+        # kxd and d x n = kxn
+        # want 1 x n of distance sum to point
+        pt_dist = np.ones((n, 1)) * len(centers)
+        for center in centers:
+            pt_dist = pt_dist - points.dot(center.transpose())
+        probs = 1 / pt_dist.sum() * pt_dist
+        cdf = np.ravel(np.cumsum(probs))
+        r = random()
+        index = np.searchsorted(cdf, r)
+        centers.append(points[index - 1, :])
+    return vstack(centers, format="csr")
+
 def normalize_rows(matrix):
     """
     Normalize each row in the matrix so that the are of length 1.
@@ -51,6 +78,51 @@ def normalize_rows(matrix):
     return matrix
 
 
+def argmax(arr):
+    (n, k) = arr.shape
+    out = np.zeros(n)
+    for i in xrange(n):
+        (row_i, col_i) = (arr[i,:] == arr[i,:].max()).nonzero()
+        out[i] = col_i[0]
+    return out
+
+
+def lsh_h(f_n, d):
+    """
+    Returns a matrix of random unit vectors
+    """
+    mat = normalize_rows(normal(0, 1, (f_n, d)))
+    return mat.transpose()
+
+
+def kmeans_cosine(k, sparse_matrix,  max_iters=100):
+    sparse_matrix = normalize_rows(sparse_matrix)
+    (n, d) = sparse_matrix.shape
+    centers = k_means_pp(sparse_matrix, k)    
+    #n x k want argmax of rows
+    distances = sparse_matrix.dot(centers.transpose())
+    labels = argmax(distances)
+    
+    for i in xrange(max_iters):
+        unqf = np.unique(labels)
+        new_centers= []
+        for label in unqf:
+            #Find average vector and normalize it onto sphere surface
+            center = sparse_matrix[labels == label, :].sum(axis=0)
+            new_centers.append(center / npl.norm(center))
+        new_centers = k_means_pp(sparse_matrix, k, initial=new_centers)
+
+        distances = sparse_matrix.dot(new_centers.transpose())
+        new_labels = argmax(distances)
+
+        if np.array_equal(new_labels, labels):
+            return (labels, new_centers)
+
+        centers = new_centers
+        labels = new_labels
+
+    return (labels, centers)
+
 def cosine_cluster_users_matrix(user_count_matrix, k = 60):
     """
     Just clusters the matrix using cosine similiarity.
@@ -61,8 +133,8 @@ def cosine_cluster_users_matrix(user_count_matrix, k = 60):
     user_count_matrix = normalize_rows(user_count_matrix)
     #db = cluster.DBSCAN(min_samples=5, algorithm='brute', metric="cosine")
     #db = cluster.AgglomerativeClustering(n_clusters=30)#, affinity="cosine", linkage="complete")
-    #db = cluster.MiniBatchKMeans(n_clusters=30, max_iter=1000, batch_size=400)
-    db = cluster.KMeans(n_clusters=k, max_iter=10000)
+    #db = cluster.MiniBatchKMeans(n_clusters=k, max_iter=1000, batch_size=400)
+    db = cluster.KMeans(n_clusters=k, max_iter=10000, init='random')
     #db = cluster.SpectralClustering(n_clusters=30)
     #db = cluster.Ward(n_clusters=30)
     #db = cluster.Birch(n_clusters=30)
@@ -102,26 +174,26 @@ def k_representatives(bag, k):
 (matrix, subreddit_map, reverse_map) = matrix_repre("../data/subreddits")
 #matrix = matrix > 0
 arr = np.zeros(len(subreddit_map))
-arr[subreddit_map["programming"]] = 1
+arr[subreddit_map["darksouls"]] = 1
 matrix = matrix[matrix.dot(arr) > 0, :]
 
-labels = cosine_cluster_users_matrix(matrix, k=10)
-bags = cluster_centers(matrix, reverse_map, labels)
+#labels = cosine_cluster_users_matrix(matrix, k=150)
+#(labels, centers) = kmeans_cosine(10, matrix)
+def run():
+    (labels, centers) = kmeans_cosine(10, matrix, max_iters=10)
+cProfile.run("run()")
 
+(labels, centers) = kmeans_cosine(10, matrix, max_iters=1)
+"""
+bags = cluster_centers(matrix, reverse_map, labels)
 print (matrix != 0).sum() / float(np.product(matrix.shape))
+
 print matrix.shape
 
 key_order = sorted(bags, key=lambda bag_key: sum(labels == bag_key))
 for bag_key in key_order:
     strs = map(lambda x: str(x[0]) + ": %.3f"%x[1], k_representatives(bags[bag_key], 5))
     print str(sum(labels == bag_key)) + " " + " ".join(strs)
-"""
-#Just linguists
-labels = cosine_cluster_users_matrix(lingmat, k=3)
-bags = most_important(lingmat, reverse_map, labels)
 
-key_order = sorted(bags, key=lambda bag_key: sum(labels == bag_key))
-for bag_key in key_order:
-    print str(sum(labels == bag_key)) + " " + str(k_representatives(bags[bag_key], 10))
 
 """
