@@ -8,7 +8,9 @@ import numpy.linalg as npl
 from numpy.random import normal
 import heapq
 import math
+import itertools
 from random import randint, random
+from collections import Counter
 from scipy.linalg import hadamard
 import cProfile
 
@@ -47,7 +49,7 @@ def k_means_pp(points, k, initial = None):
         centers = []
         centers.append(points[randint(0, n - 1), :])
     else:
-        centers = initial
+        centers = map(csr_matrix, initial)
         offset = len(initial)
     for i in xrange(1, k - offset):
         #get distance to each cluster so
@@ -62,10 +64,8 @@ def k_means_pp(points, k, initial = None):
         r = random()
         index = np.searchsorted(cdf, r)
         centers.append(points[index - 1, :])
-    for center in centers:
-        print
-        print center.shape
     return vstack(centers, format="csr")
+
 
 def normalize_rows(matrix):
     """
@@ -93,12 +93,44 @@ def argmax(arr):
     return out
 
 
-def lsh_h(f_n, d):
+def cosine_hash(seeds, pts, r, b):
     """
-    Returns a matrix of random unit vectors
+    Use LSH with cosine similarity to hash 
+    rows. Each row is mapped to a set of 
+    r integers. 
+    Each integer corresponds to the groups that
+    the row belongs too.
+    A row can belong to multiple groups
     """
-    mat = normalize_rows(normal(0, 1, (f_n, d)))
-    return mat.transpose()
+    (n, d) = pts.shape
+    r = len(seeds)
+    (d, b) = seeds[0].shape
+    base_mat = (2 ** np.array(range(b), ndmin=2)).transpose()
+    indices = []
+    for band in seeds:
+        indices.append((pts.dot(band) > 0).dot(base_mat))
+    return indices
+
+
+def popcount(x):
+    """
+    Taken from this blog post
+    http://www.expobrain.net/2013/07/29/hamming-weights-python-implementation/
+    """
+    x -= (x >> 1) & 0x5555555555555555
+    x = (x & 0x3333333333333333) + ((x >> 2) & 0x3333333333333333)
+    x = (x + (x >> 4)) & 0x0f0f0f0f0f0f0f0f
+    return ((x * 0x0101010101010101) & 0xffffffffffffffff ) >> 56
+
+
+def sig_sim(sig1, sig2, h):
+    """
+    Calculates the hamming distance between two integers and
+    then uses that to approximate the cosine distance between two
+    points.
+    """
+    return 2 ** h - popcount(sig1 ^ sig2)
+
 
 def nextpow2(i):
     n = 1
@@ -111,34 +143,92 @@ def approx_bound(eps, n):
     return 1 / eps ** 2 * math.log(n)
 
 
-def fjlt(n, d, eps, p):
-    k = int(approx_bound(eps, n) + .5)
-    #Build the Hadamard
-    val_len = nextpow2(d)
-    H = (1 / math.sqrt(d)) * hadamard(val_len)[0:d, 0:d]
+def similarity_matrix(similarity, b):
+    """
+    Two elements are similar if they have
+    one element in a row in common.
+    """
+    r = len(similarity)
+    n = similarity.shape[0]
+    table = [[] for i in xrange(2**b)]
+    indices = np.array(range(n))
+    
+    for column in similarity:
+        for j in xrange(n):
+            table[column[j]].append(j)
+    #table now contains a list of lists of vertices that have
+    #edges together
+    rows = []
+    cols = []
+    data = []
+    #We need to iterate through the edge lists
+    #in each entry of table and construct the
+    #sim matrix
+    for i in xrange(2**b):
+        for (v1, v2) in itertools.combinations(table[i], 2):
+            rows.append(v1)
+            cols.append(v2)
+            data.append(1)
+    return csr_matrix((data, (rows, cols)))
 
-    #Build the diagonal matrix
-    diag_mat = np.zeros(d)
-    for i in xrange(d):
-        if np.random.random() <= 0.5:
-            diag_mat[i] = 1
+
+def assign_labels(pt_map, center_map):
+    k = center_map[0].shape[0]
+    n = pt_map[0].shape[0]
+    table = {}
+    #Should take O(kr)
+    for center_col in center_map:
+        for j in xrange(center_col.shape[0]):
+            if center_col[j, 0] not in table:
+                table[center_col[j, 0]] = [j]
+            else:
+                table[center_col[j, 0]].append(j)
+
+    #Should take O(nr) time
+    labels = np.zeros(pt_map[0].shape[0])
+    for j in xrange(n):
+        centers = []
+        for pt_col in pt_map:
+            if pt_col[j, 0] in table:
+                centers.extend(table[pt_col[j, 0]])
+        #Set point to be a random cluster since it isn't like any of them
+        if len(centers) == 0:
+            labels[j] = randint(0, k - 1)
         else:
-            diag_mat[i] = -1
-    D = np.diag(diag_mat, 0)
-    q = min(math.log(n)**p / (d * eps ** (p - 2)), 1.0)
+            labels[j] = centers[0]
+    return labels
 
-    p_data = []
-    p_rows = []
-    p_cols = []
-    for i in xrange(k):
-        for j in xrange(d):
-            if  q > np.random.random():
-                p_data.append(np.random.normal(0, 1/q))
-                p_rows.append(i)
-                p_cols.append(j)
-    P = sparse.csr_matrix((p_data, (p_rows, p_cols)), shape=(k, d))
-    S = P.dot(H).dot(D)
-    return S
+
+def kmeans_LSH(k, sparse_matrix, r, b, max_iters=100):
+    sparse_matrix = normalize_rows(sparse_matrix)
+    (n, d) = sparse_matrix.shape
+    seeds = [normal(size=(d, b)) for i in xrange(r)]
+    index_map = cosine_hash(seeds, sparse_matrix, r, b)
+    centers = k_means_pp(sparse_matrix, k)
+    center_map = cosine_hash(seeds, centers, r, b)
+    labels = assign_labels(index_map, center_map)
+    for i in xrange(max_iters):
+        unqf = np.unique(labels)
+        new_centers= []
+        for label in unqf:
+            #Find average vector and normalize it onto sphere surface
+            center = sparse_matrix[labels == label, :].sum(axis=0)
+            ncenter = csr_matrix(center / npl.norm(center))
+            new_centers.append(ncenter)
+        #Pick some random points to serve as new cluster centers
+        for j in xrange(k - len(new_centers)):
+            new_centers.append(sparse_matrix[randint(0, n - 1), :])
+        new_centers = vstack(new_centers, format="csr")
+        center_map = cosine_hash(seeds, centers, r, b)
+        new_labels = assign_labels(index_map, center_map)
+
+        if np.array_equal(new_labels, labels):
+            return (labels, new_centers)
+
+        centers = new_centers
+        labels = new_labels
+
+    return (labels, centers)
 
 
 def kmeans_cosine(k, sparse_matrix,  max_iters=100):
@@ -170,6 +260,7 @@ def kmeans_cosine(k, sparse_matrix,  max_iters=100):
         labels = new_labels
 
     return (labels, centers)
+
 
 def cosine_cluster_users_matrix(user_count_matrix, k = 60):
     """
@@ -219,24 +310,23 @@ def k_representatives(bag, k):
     else:
         return bags[bag_key].items()
     
+
 (matrix, subreddit_map, reverse_map) = matrix_repre("../data/subreddits")
-#matrix = matrix > 0
-arr = np.zeros(len(subreddit_map))
-arr[subreddit_map["darksouls"]] = 1
-matrix = matrix[matrix.dot(arr) > 0, :]
+mask = np.zeros(matrix.shape[0], dtype=bool)
 
-#labels = cosine_cluster_users_matrix(matrix, k=150)
-#(labels, centers) = kmeans_cosine(10, matrix)
-def run():
-    (labels, centers) = kmeans_cosine(10, matrix, max_iters=1)
+mask[subreddit_map["darksouls"]] = True
+rows = matrix[:, mask] > 0
+rows = np.ravel(rows.todense())
+
+matrix = matrix[rows, :]
+#def run():
+(labels, centers) = kmeans_LSH(8, matrix, 10, 3, max_iters=1000)
+
 #cProfile.run("run()")
-
-(labels, centers) = kmeans_cosine(4, matrix, max_iters=100)
 
 bags = cluster_centers(matrix, reverse_map, labels)
 print (matrix != 0).sum() / float(np.product(matrix.shape))
 
-print matrix.shape
 
 key_order = sorted(bags, key=lambda bag_key: sum(labels == bag_key))
 for bag_key in key_order:
