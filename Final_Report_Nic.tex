@@ -20,7 +20,7 @@
 \newpage
   
 \section*{Introduction}
-		We had a change in direction after we realized that working with the windmill data would  be more difficult than we had imagined.  The data was so large that we could not effectively manage it in memory. This meant that our project would focus on streaming algorithms or matrix sketching.  We decided that it might be more fun to actually look at aspects of the data instead of how to work with really really big data.  This led us to switch data sets.  \newline
+		We had a change in direction after we realized that working with the windmill data would  be more difficult than we had imagined.  The data was so large that we could not effectively manage it in memory. This meant that our project would focus on streaming algorithms or matrix sketching.  We decided that it might be more fun to actually look at aspects of the data instead of how to work with really really big data.   \newline
 
 		This project now uses reddit data which is collected in real-time from current posts.  \newline
 		
@@ -28,7 +28,7 @@
 		
 		
 \section*{N-Gram Analysis (Nicolas Bertagnolli)}
-	To answer the question, "how similar are high ranking posts?" we take a set of 1000 reddit posts that have over 100 up-votes from all of reddit.  The threshold was determined using domain knowledge of reddit to adequately capture a reasonably "good" post.  We validated this number by calculating the average number of up-votes on a random sample of reddit posts which turned out to be 97 up-votes.  This says that when we take posts that score above 100 we are taking posts that are above average.   The (1-4)-grams for these 1000 posts were then found and the pairwise jaccard similarity was calculated.  This number was then averaged and examined.  We found that the average Jaccard similarity between high ranking reddit posts for different n-grams was:\newline
+	To answer the question, "how similar are high ranking posts?" we take a set of 1000 reddit posts that have over 100 up-votes from all of reddit.  The threshold was determined using domain knowledge of reddit with the intent to adequately capture a reasonably "good" posts.   We validated this number by calculating the average number of up-votes on a random sample of reddit posts (97 up-votes on average).  This says that when we take posts that score above 100 we are taking posts that are more ore less well liked.   The (1-4)-grams for these 1000 posts were found and the pairwise jaccard similarity was calculated.  The similarity was averaged and examined.  We found that the average Jaccard similarity between high ranking reddit posts for different n-grams when tested on all of Reddit was:\newline
 	\begin{table}[h!]
 	  \begin{tabular}{c | c c c c}
 	  n-gram & 1 & 2 & 3 & 4\\
@@ -45,7 +45,7 @@
 	
 	"If only he had another one"
 	
-	The first is fairly long , and the second is only a few words.  This in and of itself ensures low similarity just based on size.  Not to mention, that they both don't share a single word.  As it stands now we can say that the words alone do not make good predictors of reddit likeability.  However, there was a lot of variance in the rankings of these 1000 posts.  What happens if we restrict the posts to a range and refine our question say, "How similar are high ranking posts where the rankings differ by no more than 100 votes?"  Here we examine what happens when we take reddit posts that received between 100 and 200 up-votes.  We find that the similarities are:\newline
+	The first is fairly long , and the second is only a few words.  This in and of itself ensures low similarity just based on size.  Not to mention, that they both don't share a single word.  As it stands now we can say that the words alone do not make good predictors of reddit likeability.  However, there was a lot of variance in the rankings of these 1000 posts.  What happens if we restrict the posts to a range and refine our question say, "How similar are high ranking posts where the rankings differ by no more than 100 votes?" To test this we then examined what happened when reddit posts that received between 100 and 200 up-votes were analyzed.  We found that the similarities were:\newline
 	
 \begin{table}[h!]
 	  \begin{tabular}{c | c c c c}
@@ -54,7 +54,7 @@
 	  Similarity & .023 & $2.21e^{-3}$ & $1.69e^{-3}$ & $1.54e^{-3}$
 	  \end{tabular}
 	\end{table}
-	This was surprising because it was slightly worse than the whole set.  This lead us to believe that a measurable amount of the similarity came from the upper upper echelon of reddit posts.This led us to examine posts that received more than 1000 votes.  We find that there is significantly more similarity among posts above 1000 up-votes.  These results are:\newline
+	This was surprising because it was slightly worse than the whole set.  This led us to believe that a measurable amount of the similarity came from the upper upper echelon of reddit posts.  To test this hypothesis we refined our search to posts which received more than 1000 votes.  We find that there is significantly more similarity among posts above 1000 up-votes.  These results are:\newline
 	
 	\begin{table}[h!]
 	  \begin{tabular}{c | c c c c}
@@ -64,7 +64,7 @@
 	  \end{tabular}
 	\end{table}
 	
-	Now In these past experiments all possible subreddits were sampled.  This gives us an idea of similarity across all of reddit, but it seems like there is a lot of variability.  We want to see if we can better understand similarity between highly liked posts in a specific category.  For example, the posts in the funny category are probably more similar to each other than a mixture of posts from funny and say the science reddit.  We find that for the subreddits funny and science the similarities are:
+	In these experiments all possible subreddits were sampled.  This gave us an idea of similarity across all of reddit, but it seems like there is a lot of variability among posts.  With all of the variety in reddit we wondered if restricting our space to a particular category would yield higher similarity.  For example, the posts in the funny category are probably more similar to each other than a mixture of posts from funny and say the science reddit.  We find that for the subreddits funny and science the similarities are:
 	
 		\begin{table}[h!]
 	  \begin{tabular}{c | c c c c}
@@ -72,19 +72,13 @@
 	  \hline
 	  Funny & .038 & .017 & .015 & .014\\
 	  Science & .494 & .397 & .394 & .394\\
+	  worldnews & .054 & .022 & .021 & .020
 	  \end{tabular}
 	\end{table}
 	However the Science category only had 5 results that were greater than 100
 	
-These results are pretty good.  They are almost on par with the above 1000 upvotes for all of reddit.  We now repeat that experiment to see if the similarity improves for extremely well liked posts the results are:
+These results are pretty good.  They are almost on par with the above 1000 upvotes for all of reddit.   We attempted to repeat this experiment on all of the categories for posts above 1000 likes but in most of these categories we could not get the required 1000 posts.  So our data was skewed.  
 
-	\begin{table}[h!]
-	  \begin{tabular}{c | c c c c}
-	  n-gram & 1 & 2 & 3 & 4\\
-	  \hline
-	  Funny & .130 & .107 & .100 & .085\\
-	  \end{tabular}
-	\end{table}
 	
 	
 	

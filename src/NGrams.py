@@ -26,7 +26,7 @@ def parse_body(str):
 """
 def top_n_posts_range(numPosts,r1):
     #create a generator for the top reddit posts
-    topCom = RedditParser.Parse_Subreddit("all",order = RedditParser.Get_Top)#use .next() to get other elem
+    topCom = RedditParser.Parse_Subreddit("all",order = RedditParser.Get_Top_From_All)#use .next() to get other elem
     iter = 0  #check on the outer while loop
     count = 0 #number of posts that we have accepted
     r1Iter = 0 #move through the r1 array
@@ -42,7 +42,7 @@ def top_n_posts_range(numPosts,r1):
 
 def top_n_posts(numPosts,r1):
     #create a generator for the top reddit posts
-    topCom = RedditParser.Parse_Subreddit("all",order = RedditParser.Get_Top)#use .next() to get other elem
+    topCom = RedditParser.Parse_Subreddit("all",order = RedditParser.Get_Top_All)#use .next() to get other elem
     #iter = 0  #check on the outer while loop
     count = 0 #number of posts that we have accepted
    # r1Iter = 0 #move through the r1 array
@@ -53,6 +53,21 @@ def top_n_posts(numPosts,r1):
             posts.append(temp)
             count += 1
            # iter += 1
+
+    return posts
+
+def top_n_posts_spec(numPosts,r1,spec):
+    #create a generator for the top reddit posts
+    topCom = RedditParser.Parse_Subreddit(spec,order = RedditParser.Get_Top_All)#use .next() to get other elem
+    #iter = 0  #check on the outer while loop
+    count = 0 #number of posts that we have accepted
+   # r1Iter = 0 #move through the r1 array
+    posts = []
+
+    for temp in topCom:
+        if(temp[2] > r1):
+            posts.append(temp)
+               
 
     return posts
 
@@ -80,12 +95,32 @@ def nCr(n,r):
 
 def avg_post(numPosts):
     avg = 0
-    topcom = RedditParser.Parse_Subreddit("all",order = RedditParser.Get_Top)
+    topcom = RedditParser.Parse_Subreddit("all",order = RedditParser.Get_Top_All)
     for i in range(numPosts):
         temp = topcom.next()
         avg += temp[2]
         #print(temp[2])
     return (avg / numPosts)
+
+def test(numPosts,thresh,ty):
+    posts = top_n_posts_spec(numPosts,thresh,ty)
+    print(ty)
+    print(len(posts))
+    grams = calc_ngrams(posts,1)
+    print("1-grams")
+    print(jacc_compare(grams))
+
+    grams = calc_ngrams(posts,2)
+    print("2-grams")
+    print(jacc_compare(grams))
+    
+    grams = calc_ngrams(posts,3)
+    print("3-grams")
+    print(jacc_compare(grams))
+
+    grams = calc_ngrams(posts,4)
+    print("4-grams")
+    print(jacc_compare(grams))
             
 
 def main():
@@ -100,6 +135,7 @@ def main():
 
    # print(jacc_sim(grams[0],grams[0]))
    # print(jacc_sim(grams[0],grams[1]))
+    """
     print("All above 1000")
     posts = top_n_posts(100,1000)
     print(posts[0][0])
@@ -107,6 +143,8 @@ def main():
     print(parse_body(posts[0][0]))
     print(parse_body(posts[9][0]))
 
+    #Run N-grams on normal sets
+    
     grams = calc_ngrams(posts,1)
     print("grams")
     print(jacc_compare(grams))
@@ -141,7 +179,26 @@ def main():
     print("4-grams")
     print(jacc_compare(grams))
 
+    """
 
+    #Run N-Grams on specific subreddits for similarity
+    """
+    Here we See if there are more similarities between specific subreddits for example funny 
+    """
+
+    test(300,100,'funny')
+    test(300,100,'worldnews')
+    test(300,100,'science')
+
+    print('over 1000')
+
+    test(300,1000,'funny')
+    test(300,1000,'worldnews')
+    test(300,1000,'science')
+
+    #serious, politics, science
+    
+    
    
     
 
