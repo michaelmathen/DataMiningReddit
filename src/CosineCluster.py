@@ -1,18 +1,15 @@
 import json
-from scipy.sparse import csr_matrix, diags, coo_matrix, vstack
-from scipy.sparse.linalg import svds
+from scipy.sparse import csr_matrix, diags, vstack
 import sklearn.cluster as cluster
 import os
 import numpy as np
 import numpy.linalg as npl
 from numpy.random import normal
 import heapq
-import math
-import itertools
 from random import randint, random
-from collections import Counter
-from scipy.linalg import hadamard
 import cProfile
+
+from collections import defaultdict
 
 def matrix_repre(directory):
     """
@@ -71,7 +68,7 @@ def normalize_rows(matrix):
     """
     Normalize each row in the matrix so that the are of length 1.
     """
-    row_norms = np.sqrt(matrix.multiply(matrix).sum(axis=1))
+    row_norms = np.sqrt(matrix.multiply(matrix)).sum(axis=1)
     def dv(x):
         if x == 0:
             return 0
@@ -93,7 +90,7 @@ def argmax(arr):
     return out
 
 
-def cosine_hash(seeds, pts, r, b):
+def cosine_hash(seeds, pts):
     """
     Use LSH with cosine similarity to hash 
     rows. Each row is mapped to a set of 
@@ -103,125 +100,72 @@ def cosine_hash(seeds, pts, r, b):
     A row can belong to multiple groups
     """
     (n, d) = pts.shape
-    r = len(seeds)
-    (d, b) = seeds[0].shape
-    base_mat = (2 ** np.array(range(b), ndmin=2)).transpose()
     indices = []
     for band in seeds:
+        (d, b_i) = band.shape
+        base_mat = (2 ** np.array(range(b_i), ndmin=2)).transpose()
         indices.append((pts.dot(band) > 0).dot(base_mat))
     return indices
-
-
-def popcount(x):
-    """
-    Taken from this blog post
-    http://www.expobrain.net/2013/07/29/hamming-weights-python-implementation/
-    """
-    x -= (x >> 1) & 0x5555555555555555
-    x = (x & 0x3333333333333333) + ((x >> 2) & 0x3333333333333333)
-    x = (x + (x >> 4)) & 0x0f0f0f0f0f0f0f0f
-    return ((x * 0x0101010101010101) & 0xffffffffffffffff ) >> 56
-
-
-def sig_sim(sig1, sig2, h):
-    """
-    Calculates the hamming distance between two integers and
-    then uses that to approximate the cosine distance between two
-    points.
-    """
-    return 2 ** h - popcount(sig1 ^ sig2)
-
-
-def nextpow2(i):
-    n = 1
-    while n < i:
-        n *= 2
-    return n
-
-
-def approx_bound(eps, n):
-    return 1 / eps ** 2 * math.log(n)
-
-
-def similarity_matrix(similarity, b):
-    """
-    Two elements are similar if they have
-    one element in a row in common.
-    """
-    r = len(similarity)
-    n = similarity.shape[0]
-    table = [[] for i in xrange(2**b)]
-    indices = np.array(range(n))
-    
-    for column in similarity:
-        for j in xrange(n):
-            table[column[j]].append(j)
-    #table now contains a list of lists of vertices that have
-    #edges together
-    rows = []
-    cols = []
-    data = []
-    #We need to iterate through the edge lists
-    #in each entry of table and construct the
-    #sim matrix
-    for i in xrange(2**b):
-        for (v1, v2) in itertools.combinations(table[i], 2):
-            rows.append(v1)
-            cols.append(v2)
-            data.append(1)
-    return csr_matrix((data, (rows, cols)))
 
 
 def assign_labels(pt_map, center_map):
     k = center_map[0].shape[0]
     n = pt_map[0].shape[0]
-    table = {}
+    labels = np.ones(pt_map[0].shape[0], dtype=int) * -1
+    unq_labels = set()
     #Should take O(kr)
-    for center_col in center_map:
-        for j in xrange(center_col.shape[0]):
-            if center_col[j, 0] not in table:
-                table[center_col[j, 0]] = [j]
+    table = []
+    for i in xrange(len(center_map)):
+        table.append({})
+        for j in xrange(k):
+            if center_map[i][j, 0] in table[-1]:
+                table[-1][center_map[i][j, 0]].append(j)
             else:
-                table[center_col[j, 0]].append(j)
-
-    #Should take O(nr) time
-    labels = np.zeros(pt_map[0].shape[0])
+                table[-1][center_map[i][j, 0]] = [j]
     for j in xrange(n):
-        centers = []
-        for pt_col in pt_map:
-            if pt_col[j, 0] in table:
-                centers.extend(table[pt_col[j, 0]])
-        #Set point to be a random cluster since it isn't like any of them
-        if len(centers) == 0:
-            labels[j] = randint(0, k - 1)
-        else:
-            labels[j] = centers[0]
-    return labels
+        label = defaultdict(int)
+        for i in xrange(len(center_map)):
+            #We have already found this
+            key = pt_map[i][j, 0]
+            if key in table[i]:
+                for el in table[i][key]:
+                    label[el] += 1
+
+        if len(label) != 0:
+            max_label = max(label, key=label.__getitem__)
+            unq_labels.add(max_label)
+            labels[j] = max_label
+    return (labels, unq_labels)
 
 
-def kmeans_LSH(k, sparse_matrix, r, b, max_iters=100):
+def kmeans_LSH(k, sparse_matrix, bands, max_iters=100):
     sparse_matrix = normalize_rows(sparse_matrix)
     (n, d) = sparse_matrix.shape
-    seeds = [normal(size=(d, b)) for i in xrange(r)]
-    index_map = cosine_hash(seeds, sparse_matrix, r, b)
+    seeds = [normal(size=(d, b)) for b in bands]
+    index_map = cosine_hash(seeds, sparse_matrix)
     centers = k_means_pp(sparse_matrix, k)
-    center_map = cosine_hash(seeds, centers, r, b)
-    labels = assign_labels(index_map, center_map)
+    center_map = cosine_hash(seeds, centers)
+    (labels, unqf) = assign_labels(index_map, center_map)
     for i in xrange(max_iters):
-        unqf = np.unique(labels)
         new_centers= []
+        max_label = -1
+        max_label_num = 0
         for label in unqf:
             #Find average vector and normalize it onto sphere surface
-            center = sparse_matrix[labels == label, :].sum(axis=0)
-            ncenter = csr_matrix(center / npl.norm(center))
-            new_centers.append(ncenter)
+            labeled_rows = sparse_matrix[labels == label, :]
+            if max_label_num < labeled_rows.shape[0]:
+                max_label = label
+                max_label_num = labeled_rows.shape[0]
+            center = csr_matrix(labeled_rows.sum(axis=0))
+            #ncenter = csr_matrix(center / npl.norm(center, norm=2))
+            new_centers.append(center)
         #Pick some random points to serve as new cluster centers
         for j in xrange(k - len(new_centers)):
-            new_centers.append(sparse_matrix[randint(0, n - 1), :])
+            new_centers.append(csr_matrix(sparse_matrix[randint(0, n - 1), :]))
         new_centers = vstack(new_centers, format="csr")
-        center_map = cosine_hash(seeds, centers, r, b)
-        new_labels = assign_labels(index_map, center_map)
-
+        center_map = cosine_hash(seeds, new_centers)
+        (new_labels, unqf) = assign_labels(index_map, center_map)
+        print i
         if np.array_equal(new_labels, labels):
             return (labels, new_centers)
 
@@ -232,15 +176,10 @@ def kmeans_LSH(k, sparse_matrix, r, b, max_iters=100):
 
 
 def kmeans_cosine(k, sparse_matrix,  max_iters=100):
-    sparse_matrix = normalize_rows(sparse_matrix)
-    U, s, V = svds(sparse_matrix, k=25)
-    #theta = fjlt(n, d, .01, 2)
-    sparse_matrix = sparse_matrix.dot(V.transpose())
     sparse_matrix = csr_matrix(sparse_matrix)
     centers = k_means_pp(sparse_matrix, k)
     distances = sparse_matrix.dot(centers.transpose())
     labels = argmax(distances)
-    
     for i in xrange(max_iters):
         unqf = np.unique(labels)
         new_centers= []
@@ -249,7 +188,6 @@ def kmeans_cosine(k, sparse_matrix,  max_iters=100):
             center = sparse_matrix[labels == label, :].sum(axis=0)
             new_centers.append(center / npl.norm(center))
         new_centers = k_means_pp(sparse_matrix, k, initial=new_centers)
-        print new_centers.shape
         distances = sparse_matrix.dot(new_centers.transpose())
         new_labels = argmax(distances)
 
@@ -262,29 +200,23 @@ def kmeans_cosine(k, sparse_matrix,  max_iters=100):
     return (labels, centers)
 
 
-def cosine_cluster_users_matrix(user_count_matrix, k = 60):
+def cluster_users_matrix(user_count_matrix, k = 60):
     """
     Just clusters the matrix using cosine similiarity.
     If we normalize the rows of the matrix then 
     ||a - b||^2 = (a - b)(a - b)^T = ||a||^2 + ||b||^2 - 2a^Tb = 2(1 - a^Tb)
     = 2(1 - cos(\theta))
     """
-    user_count_matrix = normalize_rows(user_count_matrix)
-    #db = cluster.DBSCAN(min_samples=5, algorithm='brute', metric="cosine")
-    #db = cluster.AgglomerativeClustering(n_clusters=30)#, affinity="cosine", linkage="complete")
-    #db = cluster.MiniBatchKMeans(n_clusters=k, max_iter=1000, batch_size=400)
-    db = cluster.KMeans(n_clusters=k, max_iter=10000, init='random')
-    #db = cluster.SpectralClustering(n_clusters=30)
-    #db = cluster.Ward(n_clusters=30)
-    #db = cluster.Birch(n_clusters=30)
-    return db.fit_predict(user_count_matrix)
+    matrix = normalize_rows(user_count_matrix)
+    #db = cluster.KMeans(n_clusters=k, max_iter=10000)
+    db = cluster.MiniBatchKMeans(n_clusters=k, batch_size=10000, max_iter=10000)
+    return db.fit_predict(matrix)
 
 def cluster_center(matrix, labels, label):
     cluster_rows = matrix[labels == label, :]
     return cluster_rows.sum(axis=0) / float(cluster_rows.sum())
 
 def cluster_centers(count_matrix, reverse_map, labels):
-        
     #Now we have to make sense of what each cluster actually is.
     cluster_bags = {}
     for label in np.unique(labels):
@@ -293,6 +225,7 @@ def cluster_centers(count_matrix, reverse_map, labels):
         ixs = np.nonzero(center > 0)[0]
         cluster_bags[label] = {reverse_map[ix]:center[ix] for ix in ixs}
     return cluster_bags
+
 
 def threshold_bag(bag, epsilon):
     total = sum([bag[sub] for sub in bag])
@@ -309,27 +242,51 @@ def k_representatives(bag, k):
         return [(value, bag[value]) for value in values]
     else:
         return bags[bag_key].items()
-    
 
-(matrix, subreddit_map, reverse_map) = matrix_repre("../data/subreddits")
-mask = np.zeros(matrix.shape[0], dtype=bool)
+def average_sim(features):
+    (n, d) = features.shape
+    center = features.sum(axis=0)
+    ncenter = csr_matrix(center / npl.norm(center, ord=2))
+    return features.dot(ncenter.transpose()).sum() / float(n)
 
-mask[subreddit_map["darksouls"]] = True
-rows = matrix[:, mask] > 0
-rows = np.ravel(rows.todense())
 
-matrix = matrix[rows, :]
-#def run():
-(labels, centers) = kmeans_LSH(8, matrix, 10, 3, max_iters=1000)
+def cluster_sim(features):
+    (n, d) = features.shape
+    center = features.sum(axis=0)
+    ncenter = csr_matrix(center / npl.norm(center, ord=2))
+    return features.dot(ncenter.transpose()).sum()
+
+
+if __name__ == "__main__":
+    (matrix, subreddit_map, reverse_map) = matrix_repre("../data/subreddits")
+    matrix = matrix[np.ravel(matrix.sum(axis=1) > 0), :]
+    print matrix.shape
+    matrix = normalize_rows(matrix)
+    print average_sim(matrix)
+    """
+    mask = np.zeros(matrix.shape[0], dtype=bool)
+    mask[subreddit_map["AskReddit"]] = True
+    rows = matrix[:, mask] > 0
+    rows = np.ravel(rows.todense())
+    matrix = matrix[rows, :]
+    """
+    #matrix = csr_matrix(matrix, dtype=float)
+    labels = cluster_users_matrix(matrix, k = 100)
+
+    #bands = [5*i - 4 for i in xrange(1, 13)][::-1]
+    bands = [12] * 75  
+    #print bands
+    print (matrix != 0).sum() / float(np.product(matrix.shape))
+    #(labels, centers) = kmeans_LSH(120, matrix, bands, max_iters=300)
+    bags = cluster_centers(matrix, reverse_map, labels)
+
+    key_order = sorted(bags, key=lambda bag_key: sum(labels == bag_key))
+    for bag_key in key_order:
+        print average_sim(matrix[labels == bag_key,:])
+        strs = map(lambda x: str(x[0]) + ": %.3f" % x[1], k_representatives(bags[bag_key], 10))
+        print str(sum(labels == bag_key)) + " " + " ".join(strs)
+
+
 
 #cProfile.run("run()")
-
-bags = cluster_centers(matrix, reverse_map, labels)
-print (matrix != 0).sum() / float(np.product(matrix.shape))
-
-
-key_order = sorted(bags, key=lambda bag_key: sum(labels == bag_key))
-for bag_key in key_order:
-    strs = map(lambda x: str(x[0]) + ": %.3f"%x[1], k_representatives(bags[bag_key], 5))
-    print str(sum(labels == bag_key)) + " " + " ".join(strs)
 
