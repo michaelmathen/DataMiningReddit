@@ -102,7 +102,9 @@ library.
 	\end{table}
 	However the Science category only had 5 results that were greater than 100
 	
-These results are pretty good.  They are almost on par with the above 1000 upvotes for all of reddit.   We attempted to repeat this experiment on all of the categories for posts above 1000 likes but in most of these categories we could not get the required 1000 posts.
+These results are pretty good.  They are almost on par with the above 1000 upvotes for all of reddit.   We attempted to repeat this experiment on all of the categories for posts above 1000 likes but in most of these categories we could not get the required 1000 posts.\newline
+
+  To summarize we find that the words alone in posts do not give a good indicator of whether or not the post will be well liked.  We find that most of the similarity in posts comes from the upper echelons of liked posts.  We also found that there was higher similarity between posts in specific subreddits.  It would be interesting to explore these ideas further.  For example what is it about the much more liked posts that causes similarity?  Could there be some aspect of the post size?  Are they all coming from a specifica category?  Are they all dealing with a specific topic?  It might also be interesting to look at different ways of assessing similarity.  Could we use other methods like clustering to see if there are deeper relationships in these posts?
 
 \subsection*{Clustering Users (Michael Matheny)}
 We want to find groups of users with similiar interests. To do this we decided to sample reddit users and then cluster the users based on the number of comments that they had posted in each subreddit. 
@@ -163,15 +165,26 @@ error prone. For instance the label assignment code that maps
 points to centers in LSH takes cumulatively around 210 seconds to run and most of this time is from a single max 
 operation over a dictionary of counts. 
 \subsubsection*{Clusters}
-Below are some clusters we found as subreddit clouds where each word is a specific subreddit and the size is determined by its influence on the centroid.  It is interesting to note that these clusters are based solely on user posting habits.  We uncover relationships between users who like similar things.  One of the more "family friendly" examples is the fantasy sports cluster included below.  We find similar clusters for users who like professional sports, college sports, hockey, and many more.   
+Below are some clusters we found as subreddit clouds where each word is a specific subreddit and the size is determined by its influence on the centroid.  It is interesting to note that these clusters are based solely on user posting habits.  We uncover relationships between users who like similar things.  One of the more "family friendly" examples is the fantasy sports cluster included below.  We find similar clusters for users who like professional sports, college sports, hockey, and many more. 
+  
 \begin{figure}[h!]
 \centering
 	\includegraphics[scale=.2]{football_95.png}
 \end{figure}
+
+Most clusters we found for reddit users are small and around .2\% of
+ the user base to maybe 1\%. Around a quarter of users only 
+ post in the major default subreddits. Many of the remaining clusters 
+ are focused on very specific interests such as My Little Pony, 
+ aquariums, fantasy football, specific porn interests, or PC gaming. 
+ It seems that many reddit users use their accounts for following a 
+ specific interest or maybe have a throwaway account for things
+ that they are not proud of. 
 \begin{figure}[h!]
 	\centering
-	\includegraphics[scale=.6]{vegan_30.png}
+	\includegraphics[scale=.4]{feet_16.png}
 \end{figure}
+
 
 	
 
@@ -238,17 +251,66 @@ or, in terms of error
 
 For our experiments, a tradeoff exists between the accuracy in the algorithm and the amount of word clutter in the output.  In the end, the number of counters selected was two hundered, producing clean output and just a 0.5 percent error.
 
-A basic rundown of the results of the experiments are as follows:
+A basic rundown of the results of the experiments can be found below:
 
+\begin{table}
+\centering
 
+\caption{Misra-Gries, k=200, \textit{movie} subreddit}
+\begin{tabular}{c|c|c}
+\hline
+\textbf{word} & \textbf{frequency} & \textbf{proportion}\\
+\hline
+movie & 468 & 0.304\\
+\hline
+movies & 173 & 0.112\\
+\hline
+film & 113 & 0.073\\
+\hline
+I'm & 47 & 0.031\\
+\hline
+people & 27 & 0.018\\
+\hline
+superhero & 18 & 0.012\\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}
+\centering
+
+\caption{Misra-Gries, k=200, \textit{worldnews} subreddit}
+\begin{tabular}{c|c|c}
+\hline
+\textbf{word} & \textbf{frequency} & \textbf{proportion}\\
+\hline
+people & 284 & 0.095\\
+\hline
+US & 65 & 0.022\\
+\hline
+Israel & 24 & 0.008\\
+\hline
+Russia & 13 & 0.004\\
+\hline
+Iran & 12 & 0.004\\
+\hline
+Chinese & 12 & 0.004\\
+\hline
+\end{tabular}
+\end{table}
 
 Overall, the algorithm performed efficiently on the stream.  The main bottleneck was connecting to Reddit and the limitation on accessing the comments.  The stopwords did have an affect on which words were selected.  Short phrases might be more meaningful than single words because some context is lost in the concepts.  Also, the results were not as general as might be expected.  Proper names and places often showed up in the higher word frequency.  The \textit{k} = 200 worked well and produced clear wordles.  The main topic of the subreddit could possibly be determined by the most frequent words which is a good indicator of the effectiveness of the algorithm.   
 
-\section*{Appendix}
+  
+
+
 \begin{figure}[h!]
 	\centering
-	\includegraphics[scale=.4]{feet_16.png}
+	\includegraphics[scale=.6]{vegan_30.png}
 \end{figure}
+
+
+
 
 	
 	
